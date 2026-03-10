@@ -127,3 +127,6 @@ containers/
 workspace/
 payloads/
 results/
+
+# Cursor MCP config (contains API keys)
+.cursor/mcp.json

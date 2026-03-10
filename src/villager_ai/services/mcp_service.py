@@ -10,6 +10,8 @@ import json
 import asyncio
 import uvicorn
 import io
+import urllib.request
+import urllib.error
 
 app = FastAPI(title="Villager MCP Service")
 
@@ -22,16 +24,39 @@ async def mcp_request(request: dict):
     print(f"Received MCP request: {prompt[:100]}...")
     print(f"MCP servers: {mcp_servers}")
     
+    def _post_json(url: str, payload: dict, timeout_s: int = 30) -> dict:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8")
+            except Exception:
+                pass
+            raise RuntimeError(f"HTTP {e.code} from {url}: {err_body or e.reason}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Request to {url} failed: {e.reason}") from e
+
+        try:
+            return json.loads(body) if body else {}
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Non-JSON response from {url}: {body[:500]}") from e
+
     def generate_response():
         # Forward to appropriate services based on prompt content
         if "msfvenom" in prompt.lower() or "payload" in prompt.lower() or "kali" in prompt.lower():
             # Forward to Kali Driver for security tools
             kali_url = mcp_servers.get("kali_driver", "http://localhost:1611")
             try:
-                import requests
-                response = requests.post(f"{kali_url}/", json={"prompt": prompt}, timeout=30)
-                response.raise_for_status()
-                result = response.json()
+                result = _post_json(f"{kali_url}/", {"prompt": prompt}, timeout_s=30)
                 
                 # Stream the response in the format Villager expects
                 content = result.get("content", "")
@@ -48,10 +73,7 @@ async def mcp_request(request: dict):
             # Forward to Browser service
             browser_url = mcp_servers.get("browser_use", "http://localhost:8080")
             try:
-                import requests
-                response = requests.post(f"{browser_url}/", json={"prompt": prompt}, timeout=30)
-                response.raise_for_status()
-                result = response.json()
+                result = _post_json(f"{browser_url}/", {"prompt": prompt}, timeout_s=30)
                 
                 content = result.get("content", "")
                 content_escaped = json.dumps(content)

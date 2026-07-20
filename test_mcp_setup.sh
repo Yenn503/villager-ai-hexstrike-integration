@@ -66,7 +66,7 @@ except ImportError as e:
 echo "🏘️ Testing Villager imports:"
 
 # Get project root dynamically
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="\$SCRIPT_DIR"
 
 python -c "
